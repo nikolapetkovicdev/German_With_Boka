@@ -34,7 +34,7 @@ export function LoginForm({locale}: {locale: string}) {
         return;
       }
 
-      window.location.assign(result.url ?? callbackUrl);
+      window.location.assign(callbackUrl);
     } catch (error) {
       setError(`Login request failed: ${error instanceof Error ? error.message : 'unknown error'}`);
     } finally {
