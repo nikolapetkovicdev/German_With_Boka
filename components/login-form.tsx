@@ -21,7 +21,7 @@ export function LoginForm({locale}: {locale: string}) {
     });
     setLoading(false);
     if (result?.error) {
-      setError(t('common.error'));
+      setError(`Login error: ${result.error}`);
       return;
     }
     window.location.href = `/${locale}/dashboard`;
