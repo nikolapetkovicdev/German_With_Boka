@@ -8,6 +8,7 @@ type PaymentActionRow = {
   amount: string;
   currency: string;
   status: string;
+  proofs: {id: string; originalName: string}[];
 };
 
 type BookingActionRow = {
@@ -41,6 +42,16 @@ export function TeacherPaymentActions({payments}: {payments: PaymentActionRow[]}
           <div className="font-bold">{payment.student}</div>
           <div>{payment.amount} {payment.currency}</div>
           <span className="status mt-2">{payment.status}</span>
+          {payment.proofs.length ? (
+            <div className="mt-3 space-y-1">
+              <p className="text-xs font-bold text-black/60">Dokazi uplate</p>
+              {payment.proofs.map((proof) => (
+                <a key={proof.id} href={`/api/payment-proofs/${proof.id}`} className="block text-sm font-bold underline">{proof.originalName}</a>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs font-semibold text-black/60">Nema dodatog dokaza uplate.</p>
+          )}
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <button onClick={() => paymentAction(payment.id, 'confirm')} className="rounded-md bg-boka-cta px-3 py-2 text-sm font-bold text-black">Potvrdi uplatu</button>
             <button onClick={() => paymentAction(payment.id, 'reject')} className="rounded-md border border-black/20 px-3 py-2 text-sm font-bold">Odbij uplatu</button>

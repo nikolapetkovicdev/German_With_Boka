@@ -135,6 +135,7 @@ model Teacher {
   bookings       Booking[]
   rules          AvailabilityRule[]
   exceptions     AvailabilityException[]
+  bankInstructions TeacherBankInstruction[]
 
   @@index([userId])
 }
@@ -404,6 +405,28 @@ model BankAccountInstruction {
   packagePrice        Decimal  @db.Decimal(10, 2)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+model TeacherBankInstruction {
+  id                  String   @id @default(cuid())
+  teacherId           String
+  currency            Currency
+  enabled             Boolean  @default(true)
+  recipientName       String
+  recipientAddress    String
+  rsdAccountNumber    String?
+  foreignInstructions String?
+  paymentModel        String?
+  referenceRule       String
+  paymentPurpose      String
+  singleLessonPrice   Decimal  @db.Decimal(10, 2)
+  packagePrice        Decimal  @db.Decimal(10, 2)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  teacher             Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, currency])
+  @@index([teacherId, enabled])
 }
 
 model LessonPackage {

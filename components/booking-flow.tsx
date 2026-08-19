@@ -6,7 +6,24 @@ import {useTranslations} from 'next-intl';
 
 type Student = {id: string; firstName: string; lastName: string};
 type Slot = {id: string; startsAt: string};
-type BookingResponse = {booking: {id: string}; payment: {reference: string; amount: string; currency: string; purpose: string}};
+type BookingResponse = {
+  booking: {id: string};
+  payment: {
+    id: string;
+    reference: string;
+    amount: string;
+    currency: string;
+    purpose: string;
+    instruction?: {
+      recipientName: string;
+      recipientAddress: string;
+      account?: string | null;
+      foreignInstructions?: string | null;
+      model?: string | null;
+      ipsQrPayload?: string;
+    };
+  };
+};
 
 export function BookingFlow({locale}: {locale: string}) {
   const t = useTranslations();
@@ -15,6 +32,7 @@ export function BookingFlow({locale}: {locale: string}) {
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<BookingResponse | null>(null);
   const [error, setError] = useState('');
+  const [proofMessage, setProofMessage] = useState('');
 
   useEffect(() => {
     Promise.all([fetch('/api/students').then((r) => r.json()), fetch('/api/slots').then((r) => r.json())])
@@ -54,16 +72,44 @@ export function BookingFlow({locale}: {locale: string}) {
     else window.location.href = `/${locale}/dashboard`;
   }
 
+  async function uploadProof(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!result) return;
+    setProofMessage('');
+    const form = new FormData(event.currentTarget);
+    const response = await fetch(`/api/payments/${result.payment.id}/proof`, {method: 'POST', body: form});
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setProofMessage(body.error ?? t('common.error'));
+      return;
+    }
+    setProofMessage('Dokaz uplate je dodat.');
+  }
+
   if (loading) return <p className="mt-6 font-semibold">{t('common.loading')}</p>;
   if (result) {
     return (
       <section className="card mt-6 p-5">
         <h2 className="text-xl font-bold">{t('booking.success')}</h2>
         <dl className="mt-4 grid gap-3 text-sm font-semibold">
+          <div><dt className="text-black/60">Primalac</dt><dd>{result.payment.instruction?.recipientName ?? 'Nije podeseno'}</dd></div>
+          <div><dt className="text-black/60">Adresa primaoca</dt><dd>{result.payment.instruction?.recipientAddress ?? 'Nije podeseno'}</dd></div>
+          {result.payment.instruction?.account ? <div><dt className="text-black/60">Racun</dt><dd>{result.payment.instruction.account}</dd></div> : null}
+          {result.payment.instruction?.model ? <div><dt className="text-black/60">Model</dt><dd>{result.payment.instruction.model}</dd></div> : null}
           <div><dt className="text-black/60">Poziv na broj</dt><dd>{result.payment.reference}</dd></div>
           <div><dt className="text-black/60">Iznos</dt><dd>{result.payment.amount} {result.payment.currency}</dd></div>
           <div><dt className="text-black/60">Svrha</dt><dd>{result.payment.purpose}</dd></div>
+          {result.payment.instruction?.foreignInstructions ? <div><dt className="text-black/60">Devizne instrukcije</dt><dd className="whitespace-pre-wrap">{result.payment.instruction.foreignInstructions}</dd></div> : null}
+          {result.payment.instruction?.ipsQrPayload ? <div><dt className="text-black/60">IPS QR payload</dt><dd className="break-all">{result.payment.instruction.ipsQrPayload}</dd></div> : null}
         </dl>
+        <form onSubmit={uploadProof} className="mt-5 rounded-md border border-black/10 bg-white p-4">
+          <label className="block">
+            <span className="text-sm font-bold">Dokaz uplate, opciono</span>
+            <input name="file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-2 w-full rounded-md border border-black/20 px-3 py-3" />
+          </label>
+          <button className="mt-3 rounded-md border border-black/20 px-4 py-2 text-sm font-bold">Dodaj dokaz</button>
+          {proofMessage ? <p className="mt-2 text-sm font-bold">{proofMessage}</p> : null}
+        </form>
         <button onClick={markPaid} className="mt-5 rounded-md bg-boka-cta px-5 py-3 font-bold text-black">{t('booking.paid')}</button>
       </section>
     );

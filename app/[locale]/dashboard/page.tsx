@@ -35,7 +35,7 @@ export default async function DashboardPage({params}: {params: Promise<{locale: 
   });
   const paymentsReview = await prisma.payment.findMany({
     where: paymentWhere,
-    include: {student: true, booking: true},
+    include: {student: true, booking: true, proofs: true},
     orderBy: {createdAt: 'desc'},
     take: 8
   });
@@ -51,7 +51,7 @@ export default async function DashboardPage({params}: {params: Promise<{locale: 
           <h1 className="text-3xl font-bold">{t('dashboard.welcome')}</h1>
           <p className="mt-1 text-sm font-semibold text-black/65">{actor.role}</p>
         </div>
-        <Link href={`/${locale}/book`} className="rounded-md bg-boka-cta px-5 py-3 text-center font-bold text-black">
+        <Link href={`/${locale}/book`} className={`rounded-md px-5 py-3 text-center font-bold text-black ${actor.role === Role.ADMIN || actor.role === Role.TEACHER ? 'border border-black/15 bg-white' : 'bg-boka-cta'}`}>
           {t('nav.book')}
         </Link>
       </div>
@@ -106,7 +106,8 @@ export default async function DashboardPage({params}: {params: Promise<{locale: 
                   student: `${payment.student.firstName} ${payment.student.lastName}`,
                   amount: payment.amount.toString(),
                   currency: payment.currency,
-                  status: payment.status
+                  status: payment.status,
+                  proofs: payment.proofs.map((proof) => ({id: proof.id, originalName: proof.originalName}))
                 }))}
               />
             ) : (

@@ -7,6 +7,8 @@ import {assertCanManageBooking, assertCanReviewPayment} from '@/lib/security/per
 import {assertBookableWindow} from '@/lib/domain/booking-rules';
 import {addDays, addHours, addMinutes} from '@/lib/domain/time';
 import {notificationProvider} from '@/lib/providers/notification-provider';
+import {paymentProvider} from '@/lib/providers/payment-provider';
+import {fileStorageProvider} from '@/lib/providers/file-storage-provider';
 
 export async function listVisibleStudents(actor: Actor) {
   if (actor.role === Role.ADMIN) return prisma.student.findMany({include: {parents: {include: {parent: {include: {profile: true}}}}}, orderBy: {createdAt: 'desc'}});
@@ -49,7 +51,9 @@ export async function createBookingWithPayment(input: {
   if (!slot || slot.status !== SlotStatus.FREE) throw new Error('SLOT_NOT_AVAILABLE');
   assertBookableWindow(slot.startsAt);
 
-  const instruction = await prisma.bankAccountInstruction.findUnique({where: {currency: input.currency}});
+  const instruction =
+    (await prisma.teacherBankInstruction.findUnique({where: {teacherId_currency: {teacherId: slot.teacherId, currency: input.currency}}})) ??
+    (await prisma.bankAccountInstruction.findUnique({where: {currency: input.currency}}));
   if (!instruction?.enabled) throw new Error('CURRENCY_NOT_ENABLED');
   const amount = input.kind === PaymentKind.PACKAGE_4 ? instruction.packagePrice : instruction.singleLessonPrice;
   const reference = `GWB-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
@@ -95,7 +99,23 @@ export async function createBookingWithPayment(input: {
     await tx.bookingStatusHistory.create({data: {bookingId: booking.id, toStatus: BookingStatus.PAYMENT_PENDING, changedById: input.actor.id}});
     await tx.paymentStatusHistory.create({data: {paymentId: payment.id, toStatus: PaymentStatus.AWAITING_PAYMENT, changedById: input.actor.id}});
     await tx.auditLog.create({data: {actorId: input.actor.id, entityType: 'Booking', entityId: booking.id, action: 'BOOKING_HOLD_CREATED'}});
-    return {booking, payment};
+    return {
+      booking,
+      payment: {
+        ...payment,
+        instruction: paymentProvider.buildInstruction({
+          recipientName: instruction.recipientName,
+          recipientAddress: instruction.recipientAddress,
+          amount: payment.amount.toString(),
+          currency: payment.currency,
+          account: instruction.rsdAccountNumber,
+          foreignInstructions: instruction.foreignInstructions,
+          model: instruction.paymentModel,
+          reference: payment.reference,
+          purpose: payment.purpose
+        })
+      }
+    };
   });
 }
 
@@ -121,6 +141,45 @@ export async function markPaymentSubmitted(actor: Actor, bookingId: string) {
     await tx.auditLog.create({data: {actorId: actor.id, entityType: 'Payment', entityId: payment.id, action: 'PAYMENT_MARKED_SUBMITTED'}});
     return {ok: true};
   });
+}
+
+export async function uploadPaymentProof(actor: Actor, paymentId: string, file: File) {
+  const payment = await prisma.payment.findUnique({where: {id: paymentId}});
+  if (!payment) throw new Error('PAYMENT_NOT_FOUND');
+  await assertCanAccessStudent(actor, payment.studentId);
+  if (
+    payment.status !== PaymentStatus.AWAITING_PAYMENT &&
+    payment.status !== PaymentStatus.UNDER_REVIEW &&
+    payment.status !== PaymentStatus.PROOF_SUBMITTED
+  ) {
+    throw new Error('PAYMENT_PROOF_NOT_ALLOWED');
+  }
+  const stored = await fileStorageProvider.savePrivateFile(file);
+  const proof = await prisma.paymentProof.create({
+    data: {
+      paymentId: payment.id,
+      uploadedById: actor.id,
+      originalName: file.name || 'payment-proof',
+      storageKey: stored.storageKey,
+      mimeType: stored.mimeType,
+      byteSize: stored.byteSize
+    },
+    select: {id: true, originalName: true, mimeType: true, byteSize: true, createdAt: true}
+  });
+  await prisma.auditLog.create({data: {actorId: actor.id, entityType: 'Payment', entityId: payment.id, action: 'PAYMENT_PROOF_UPLOADED'}});
+  return proof;
+}
+
+export async function loadPaymentProof(actor: Actor, proofId: string) {
+  const proof = await prisma.paymentProof.findUnique({where: {id: proofId}, include: {payment: true}});
+  if (!proof) throw new Error('PAYMENT_PROOF_NOT_FOUND');
+  if (actor.role === Role.ADMIN || actor.role === Role.TEACHER) {
+    await assertCanReviewPayment(actor, proof.payment);
+  } else {
+    await assertCanAccessStudent(actor, proof.payment.studentId);
+  }
+  const loaded = await fileStorageProvider.readPrivateFile(proof.storageKey, proof.mimeType);
+  return {proof, ...loaded};
 }
 
 export async function confirmPayment(actor: Actor, paymentId: string) {

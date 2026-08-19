@@ -81,7 +81,11 @@ export async function paymentReceiptPdf(actor: Actor, paymentId: string) {
   });
   if (!payment) throw new Error('PAYMENT_NOT_FOUND');
   await assertCanAccessStudent(actor, payment.studentId);
-  const instruction = await prisma.bankAccountInstruction.findUnique({where: {currency: payment.currency}});
+  const instruction =
+    payment.booking
+      ? ((await prisma.teacherBankInstruction.findUnique({where: {teacherId_currency: {teacherId: payment.booking.teacherId, currency: payment.currency}}})) ??
+        (await prisma.bankAccountInstruction.findUnique({where: {currency: payment.currency}})))
+      : await prisma.bankAccountInstruction.findUnique({where: {currency: payment.currency}});
   const payer = await prisma.user.findUnique({where: {id: payment.payerId}, include: {profile: true}});
   const doc = new jsPDF();
   const number = `GWB-PAY-${payment.id.slice(-8).toUpperCase()}`;
