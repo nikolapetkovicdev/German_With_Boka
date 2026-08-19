@@ -14,17 +14,32 @@ export function LoginForm({locale}: {locale: string}) {
     setLoading(true);
     setError('');
     const form = new FormData(event.currentTarget);
-    const result = await signIn('credentials', {
-      email: String(form.get('email')),
-      password: String(form.get('password')),
-      redirect: false
-    });
-    setLoading(false);
-    if (result?.error) {
-      setError(`Login error: ${result.error}`);
-      return;
+    const callbackUrl = `/${locale}/dashboard`;
+
+    try {
+      const result = await signIn('credentials', {
+        email: String(form.get('email')).trim().toLowerCase(),
+        password: String(form.get('password')),
+        redirect: false,
+        callbackUrl
+      });
+
+      if (!result) {
+        setError('Login request failed: no response from authentication service.');
+        return;
+      }
+
+      if (result.error) {
+        setError(`Login error: ${result.error}`);
+        return;
+      }
+
+      window.location.assign(result.url ?? callbackUrl);
+    } catch (error) {
+      setError(`Login request failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    } finally {
+      setLoading(false);
     }
-    window.location.href = `/${locale}/dashboard`;
   }
 
   return (
