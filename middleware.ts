@@ -7,7 +7,7 @@ export default withAuth(
     callbacks: {
       authorized({token, req}) {
         const pathname = req.nextUrl.pathname;
-        if (pathname === '/' || pathname.includes('/login') || pathname.includes('/register') || pathname.includes('/privacy') || pathname.includes('/terms')) {
+        if (pathname === '/' || pathname.includes('/login') || pathname.includes('/register') || pathname.includes('/invite/teacher') || pathname.includes('/privacy') || pathname.includes('/terms')) {
           return true;
         }
         return Boolean(token);

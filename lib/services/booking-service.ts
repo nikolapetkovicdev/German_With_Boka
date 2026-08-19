@@ -3,6 +3,7 @@ import {Prisma} from '@prisma/client';
 import {BOOKING_HOLD_MINUTES, PACKAGE_CREDITS, PACKAGE_VALID_DAYS, PAYMENT_REVIEW_HOURS} from '@/lib/config';
 import {prisma} from '@/lib/prisma';
 import {Actor, assertCanAccessStudent, assertRole} from '@/lib/security/rbac';
+import {assertCanManageBooking, assertCanReviewPayment} from '@/lib/security/permissions';
 import {assertBookableWindow} from '@/lib/domain/booking-rules';
 import {addDays, addHours, addMinutes} from '@/lib/domain/time';
 import {notificationProvider} from '@/lib/providers/notification-provider';
@@ -126,6 +127,7 @@ export async function confirmPayment(actor: Actor, paymentId: string) {
   assertRole(actor, [Role.ADMIN, Role.TEACHER]);
   const payment = await prisma.payment.findUnique({where: {id: paymentId}, include: {booking: true}});
   if (!payment) throw new Error('PAYMENT_NOT_FOUND');
+  await assertCanReviewPayment(actor, payment);
   return prisma.$transaction(async (tx) => {
     await tx.payment.update({where: {id: payment.id}, data: {status: PaymentStatus.PAID, paidAt: new Date()}});
     await tx.paymentStatusHistory.create({data: {paymentId: payment.id, fromStatus: payment.status, toStatus: PaymentStatus.PAID, changedById: actor.id}});
@@ -149,6 +151,7 @@ export async function rejectPayment(actor: Actor, paymentId: string, reason: str
   assertRole(actor, [Role.ADMIN, Role.TEACHER]);
   const payment = await prisma.payment.findUnique({where: {id: paymentId}, include: {booking: true}});
   if (!payment) throw new Error('PAYMENT_NOT_FOUND');
+  await assertCanReviewPayment(actor, payment);
   return prisma.$transaction(async (tx) => {
     await tx.payment.update({where: {id: payment.id}, data: {status: PaymentStatus.REJECTED}});
     await tx.paymentStatusHistory.create({data: {paymentId: payment.id, fromStatus: payment.status, toStatus: PaymentStatus.REJECTED, changedById: actor.id, reason}});
@@ -165,7 +168,11 @@ export async function rejectPayment(actor: Actor, paymentId: string, reason: str
 export async function cancelBooking(actor: Actor, bookingId: string, reason: string) {
   const booking = await prisma.booking.findUnique({where: {id: bookingId}, include: {payments: true, student: {include: {parents: true, user: true}}, teacher: true}});
   if (!booking) throw new Error('BOOKING_NOT_FOUND');
-  if (actor.role !== Role.ADMIN && actor.role !== Role.TEACHER) await assertCanAccessStudent(actor, booking.studentId);
+  if (actor.role === Role.ADMIN || actor.role === Role.TEACHER) {
+    await assertCanManageBooking(actor, booking);
+  } else {
+    await assertCanAccessStudent(actor, booking.studentId);
+  }
   return prisma.$transaction(async (tx) => {
     await tx.booking.update({where: {id: booking.id}, data: {status: BookingStatus.CANCELLED, cancelledAt: new Date(), cancelReason: reason}});
     await tx.timeSlot.update({where: {id: booking.timeSlotId}, data: {status: SlotStatus.FREE}});
@@ -175,6 +182,59 @@ export async function cancelBooking(actor: Actor, bookingId: string, reason: str
       await tx.refund.create({data: {paymentId: payment.id, bookingId: booking.id, reason, amount: payment.amount, currency: payment.currency}});
     }
     await tx.auditLog.create({data: {actorId: actor.id, entityType: 'Booking', entityId: booking.id, action: 'BOOKING_CANCELLED', reason}});
+    return {ok: true};
+  });
+}
+
+export async function postponeBooking(actor: Actor, bookingId: string, reason: string) {
+  assertRole(actor, [Role.ADMIN, Role.TEACHER]);
+  const booking = await prisma.booking.findUnique({where: {id: bookingId}, include: {payments: true}});
+  if (!booking) throw new Error('BOOKING_NOT_FOUND');
+  await assertCanManageBooking(actor, booking);
+  if (booking.status !== BookingStatus.PAYMENT_REVIEW && booking.status !== BookingStatus.CONFIRMED) throw new Error('BOOKING_CANNOT_BE_POSTPONED');
+  return prisma.$transaction(async (tx) => {
+    await tx.booking.update({where: {id: booking.id}, data: {status: BookingStatus.RESCHEDULED, cancelReason: reason}});
+    await tx.timeSlot.update({where: {id: booking.timeSlotId}, data: {status: SlotStatus.FREE}});
+    await tx.bookingStatusHistory.create({data: {bookingId: booking.id, fromStatus: booking.status, toStatus: BookingStatus.RESCHEDULED, changedById: actor.id, reason}});
+    await tx.auditLog.create({data: {actorId: actor.id, entityType: 'Booking', entityId: booking.id, action: 'BOOKING_POSTPONED', reason}});
+    return {ok: true};
+  });
+}
+
+export async function completeBooking(actor: Actor, bookingId: string, actualMinutes?: number) {
+  assertRole(actor, [Role.ADMIN, Role.TEACHER]);
+  const booking = await prisma.booking.findUnique({where: {id: bookingId}});
+  if (!booking) throw new Error('BOOKING_NOT_FOUND');
+  await assertCanManageBooking(actor, booking);
+  if (booking.status !== BookingStatus.CONFIRMED) throw new Error('BOOKING_NOT_CONFIRMED');
+  return prisma.$transaction(async (tx) => {
+    await tx.booking.update({where: {id: booking.id}, data: {status: BookingStatus.COMPLETED}});
+    await tx.teacherLessonNote.upsert({
+      where: {bookingId: booking.id},
+      create: {bookingId: booking.id, attendance: 'PRESENT', actualMinutes: actualMinutes ?? 45},
+      update: {attendance: 'PRESENT', actualMinutes: actualMinutes ?? 45}
+    });
+    await tx.bookingStatusHistory.create({data: {bookingId: booking.id, fromStatus: booking.status, toStatus: BookingStatus.COMPLETED, changedById: actor.id}});
+    await tx.auditLog.create({data: {actorId: actor.id, entityType: 'Booking', entityId: booking.id, action: 'BOOKING_COMPLETED'}});
+    return {ok: true};
+  });
+}
+
+export async function markNoShow(actor: Actor, bookingId: string, reason: string) {
+  assertRole(actor, [Role.ADMIN, Role.TEACHER]);
+  const booking = await prisma.booking.findUnique({where: {id: bookingId}});
+  if (!booking) throw new Error('BOOKING_NOT_FOUND');
+  await assertCanManageBooking(actor, booking);
+  if (booking.status !== BookingStatus.CONFIRMED) throw new Error('BOOKING_NOT_CONFIRMED');
+  return prisma.$transaction(async (tx) => {
+    await tx.booking.update({where: {id: booking.id}, data: {status: BookingStatus.NO_SHOW}});
+    await tx.teacherLessonNote.upsert({
+      where: {bookingId: booking.id},
+      create: {bookingId: booking.id, attendance: 'ABSENT', privateNote: reason},
+      update: {attendance: 'ABSENT', privateNote: reason}
+    });
+    await tx.bookingStatusHistory.create({data: {bookingId: booking.id, fromStatus: booking.status, toStatus: BookingStatus.NO_SHOW, changedById: actor.id, reason}});
+    await tx.auditLog.create({data: {actorId: actor.id, entityType: 'Booking', entityId: booking.id, action: 'BOOKING_NO_SHOW', reason}});
     return {ok: true};
   });
 }

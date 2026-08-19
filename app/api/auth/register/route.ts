@@ -1,9 +1,7 @@
-import {Role} from '@prisma/client';
 import {z} from 'zod';
-import {prisma} from '@/lib/prisma';
-import {hashPassword} from '@/lib/security/password';
 import {rateLimit} from '@/lib/security/rate-limit';
 import {jsonError, jsonOk} from '@/lib/server/http';
+import {registerParent, registerStudent} from '@/lib/services/account-service';
 
 const schema = z.object({
   email: z.string().email(),
@@ -17,16 +15,7 @@ export async function POST(request: Request) {
   try {
     const parsed = schema.parse(await request.json());
     if (!rateLimit(`register:${parsed.email}`, 3, 60 * 60_000).ok) throw new Error('RATE_LIMITED');
-    const user = await prisma.user.create({
-      data: {
-        email: parsed.email.toLowerCase(),
-        passwordHash: await hashPassword(parsed.password),
-        role: parsed.role as Role,
-        profile: {create: {firstName: parsed.firstName, lastName: parsed.lastName, locale: 'sr'}},
-        notificationPrefs: {create: {}}
-      },
-      select: {id: true, email: true}
-    });
+    const user = parsed.role === 'STUDENT' ? await registerStudent(parsed) : await registerParent(parsed);
     return jsonOk(user, 201);
   } catch (error) {
     return jsonError(error);

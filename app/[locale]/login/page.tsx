@@ -1,4 +1,5 @@
 import {getTranslations} from 'next-intl/server';
+import Link from 'next/link';
 import {LoginForm} from '@/components/login-form';
 
 export default async function LoginPage({params}: {params: Promise<{locale: string}>}) {
@@ -10,6 +11,7 @@ export default async function LoginPage({params}: {params: Promise<{locale: stri
         <h1 className="text-2xl font-bold">{t('auth.login')}</h1>
         <p className="mt-2 text-sm font-medium text-black/70">Demo: admin@germanwithboka.local / DemoPassword123!</p>
         <LoginForm locale={locale} />
+        <Link href={`/${locale}/register`} className="mt-4 block text-center text-sm font-bold underline">Napravi nalog</Link>
       </section>
     </main>
   );

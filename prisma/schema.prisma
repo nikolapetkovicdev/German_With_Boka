@@ -101,6 +101,7 @@ model User {
   paymentProofs        PaymentProof[]          @relation("PaymentProofUploader")
   creditAdjustments    CreditLedger[]          @relation("CreditLedgerCreator")
   auditLogs            AuditLog[]
+  teacherInvitesCreated TeacherInvite[]        @relation("TeacherInviteCreator")
   notificationPrefs    NotificationPreference?
   pushDevices          PushDevice[]
   notifications        Notification[]
@@ -155,6 +156,7 @@ model Student {
   payments       Payment[]
   packages       LessonPackage[]
   creditLedger   CreditLedger[]
+  linkCodes      StudentLinkCode[]
 
   @@index([teacherId])
 }
@@ -169,6 +171,32 @@ model ParentStudent {
 
   @@unique([parentId, studentId])
   @@index([studentId])
+}
+
+model StudentLinkCode {
+  id        String    @id @default(cuid())
+  studentId String
+  code      String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, expiresAt])
+}
+
+model TeacherInvite {
+  id          String   @id @default(cuid())
+  email       String
+  token       String   @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime @default(now())
+  invitedBy   User     @relation("TeacherInviteCreator", fields: [invitedById], references: [id])
+
+  @@index([email])
+  @@index([expiresAt])
 }
 
 model AvailabilityRule {
