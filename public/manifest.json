@@ -1,0 +1,15 @@
+{
+  "name": "German with Boka",
+  "short_name": "German with Boka",
+  "start_url": "/sr/dashboard",
+  "display": "standalone",
+  "background_color": "#FFF3E8",
+  "theme_color": "#FB8D2B",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

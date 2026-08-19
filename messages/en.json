@@ -1,0 +1,71 @@
+{
+  "brand": "German with Boka",
+  "nav": {
+    "dashboard": "Dashboard",
+    "book": "Book a lesson",
+    "availability": "Availability",
+    "admin": "Admin",
+    "logout": "Sign out",
+    "language": "Language"
+  },
+  "auth": {
+    "login": "Sign in",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "register": "Register",
+    "firstName": "First name",
+    "lastName": "Last name"
+  },
+  "dashboard": {
+    "welcome": "Dashboard",
+    "nextLesson": "Next lesson",
+    "upcoming": "Upcoming lessons",
+    "credits": "Package credits",
+    "paymentsReview": "Payments under review",
+    "recent": "Recent lessons",
+    "notifications": "Notifications",
+    "today": "Today lessons",
+    "refunds": "Refunds",
+    "stats": "Statistics",
+    "users": "Users",
+    "students": "Students"
+  },
+  "booking": {
+    "title": "Book an individual online lesson",
+    "student": "Student",
+    "slot": "Time slot",
+    "currency": "Currency",
+    "kind": "Purchase type",
+    "single": "Single lesson",
+    "package": "Four-lesson package",
+    "topic": "Lesson topic",
+    "details": "Lessons, questions and additional information",
+    "reserve": "Reserve slot",
+    "paid": "I have paid",
+    "success": "The slot is temporarily held. Click “I have paid” after making the transfer.",
+    "empty": "No available slots in the next 30 days."
+  },
+  "status": {
+    "PAYMENT_PENDING": "Awaiting payment",
+    "PAYMENT_REVIEW": "Payment review",
+    "CONFIRMED": "Confirmed",
+    "CANCELLED": "Cancelled",
+    "NO_SHOW": "No show",
+    "RESCHEDULED": "Rescheduled",
+    "COMPLETED": "Completed",
+    "EXPIRED": "Expired",
+    "UNDER_REVIEW": "Under review",
+    "PAID": "Paid",
+    "REJECTED": "Rejected"
+  },
+  "common": {
+    "loading": "Loading...",
+    "empty": "No data.",
+    "error": "Something went wrong.",
+    "save": "Save",
+    "confirm": "Confirm",
+    "reject": "Reject",
+    "create": "Create"
+  }
+}

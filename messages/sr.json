@@ -1,0 +1,71 @@
+{
+  "brand": "German with Boka",
+  "nav": {
+    "dashboard": "Kontrolna tabla",
+    "book": "Zakaži čas",
+    "availability": "Raspoloživost",
+    "admin": "Admin",
+    "logout": "Odjavi se",
+    "language": "Jezik"
+  },
+  "auth": {
+    "login": "Prijava",
+    "email": "Email",
+    "password": "Lozinka",
+    "submit": "Prijavi se",
+    "register": "Registracija",
+    "firstName": "Ime",
+    "lastName": "Prezime"
+  },
+  "dashboard": {
+    "welcome": "Kontrolna tabla",
+    "nextLesson": "Sledeći čas",
+    "upcoming": "Budući časovi",
+    "credits": "Paket krediti",
+    "paymentsReview": "Uplate na proveri",
+    "recent": "Poslednji časovi",
+    "notifications": "Obaveštenja",
+    "today": "Današnji časovi",
+    "refunds": "Refundacije",
+    "stats": "Statistika",
+    "users": "Korisnici",
+    "students": "Učenici"
+  },
+  "booking": {
+    "title": "Zakaži individualni online čas",
+    "student": "Učenik",
+    "slot": "Termin",
+    "currency": "Valuta",
+    "kind": "Tip kupovine",
+    "single": "Pojedinačni čas",
+    "package": "Paket od 4 časa",
+    "topic": "Tema časa",
+    "details": "Lekcije, pitanja i dodatne informacije",
+    "reserve": "Rezerviši termin",
+    "paid": "Uplatio sam",
+    "success": "Termin je privremeno zadržan. Klikni „Uplatio sam“ kada izvršiš uplatu.",
+    "empty": "Nema dostupnih termina u narednih 30 dana."
+  },
+  "status": {
+    "PAYMENT_PENDING": "Čeka uplatu",
+    "PAYMENT_REVIEW": "Čeka proveru uplate",
+    "CONFIRMED": "Potvrđen",
+    "CANCELLED": "Otkazan",
+    "NO_SHOW": "Nije održan",
+    "RESCHEDULED": "Pomeren",
+    "COMPLETED": "Završen",
+    "EXPIRED": "Istekao",
+    "UNDER_REVIEW": "Na proveri",
+    "PAID": "Plaćeno",
+    "REJECTED": "Odbijeno"
+  },
+  "common": {
+    "loading": "Učitavanje...",
+    "empty": "Nema podataka.",
+    "error": "Došlo je do greške.",
+    "save": "Sačuvaj",
+    "confirm": "Potvrdi",
+    "reject": "Odbij",
+    "create": "Kreiraj"
+  }
+}

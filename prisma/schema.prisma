@@ -1,0 +1,488 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  PARENT
+  STUDENT
+}
+
+enum Locale {
+  sr
+  en
+}
+
+enum Currency {
+  RSD
+  EUR
+  USD
+  CHF
+}
+
+enum SlotStatus {
+  FREE
+  HELD
+  BOOKED
+  BLOCKED
+}
+
+enum BookingStatus {
+  PAYMENT_PENDING
+  PAYMENT_REVIEW
+  CONFIRMED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+  COMPLETED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  AWAITING_PAYMENT
+  PROOF_SUBMITTED
+  UNDER_REVIEW
+  PAID
+  REJECTED
+  EXPIRED
+  REFUND_PENDING
+  REFUNDED
+}
+
+enum PaymentKind {
+  SINGLE_LESSON
+  PACKAGE_4
+}
+
+enum CreditAction {
+  GRANT
+  SPEND
+  RETURN
+  EXPIRE
+  ADJUST
+}
+
+enum AttendanceStatus {
+  UNKNOWN
+  PRESENT
+  ABSENT
+}
+
+enum AvailabilityExceptionType {
+  DAY_OFF
+  VACATION
+  BLOCKED_INTERVAL
+}
+
+model User {
+  id                   String                  @id @default(cuid())
+  email                String                  @unique
+  passwordHash         String
+  role                 Role
+  isActive             Boolean                 @default(true)
+  resetTokenHash       String?
+  resetTokenExpiresAt  DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  profile              Profile?
+  teacher              Teacher?
+  studentAccount       Student?                @relation("StudentUser")
+  parentLinksCreated   ParentStudent[]         @relation("ParentUser")
+  bookingStatusChanges BookingStatusHistory[]
+  paymentStatusChanges PaymentStatusHistory[]
+  payments             Payment[]               @relation("PaymentPayer")
+  lessonAttachments    LessonAttachment[]      @relation("LessonAttachmentUploader")
+  paymentProofs        PaymentProof[]          @relation("PaymentProofUploader")
+  creditAdjustments    CreditLedger[]          @relation("CreditLedgerCreator")
+  auditLogs            AuditLog[]
+  notificationPrefs    NotificationPreference?
+  pushDevices          PushDevice[]
+  notifications        Notification[]
+
+  @@index([role])
+}
+
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  firstName String
+  lastName  String
+  phone     String?
+  locale    Locale   @default(sr)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Teacher {
+  id             String                  @id @default(cuid())
+  userId         String                  @unique
+  displayName    String
+  timeZone       String                  @default("Europe/Belgrade")
+  morningSummary String                  @default("08:00")
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  students       Student[]
+  slots          TimeSlot[]
+  bookings       Booking[]
+  rules          AvailabilityRule[]
+  exceptions     AvailabilityException[]
+
+  @@index([userId])
+}
+
+model Student {
+  id             String          @id @default(cuid())
+  userId         String?         @unique
+  teacherId      String
+  firstName      String
+  lastName       String
+  dateOfBirth    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  user           User?           @relation("StudentUser", fields: [userId], references: [id])
+  teacher        Teacher         @relation(fields: [teacherId], references: [id])
+  parents        ParentStudent[]
+  bookings       Booking[]
+  lessonContents LessonContent[]
+  payments       Payment[]
+  packages       LessonPackage[]
+  creditLedger   CreditLedger[]
+
+  @@index([teacherId])
+}
+
+model ParentStudent {
+  id        String   @id @default(cuid())
+  parentId  String
+  studentId String
+  createdAt DateTime @default(now())
+  parent    User     @relation("ParentUser", fields: [parentId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+  @@index([studentId])
+}
+
+model AvailabilityRule {
+  id          String   @id @default(cuid())
+  teacherId   String
+  dayOfWeek   Int
+  startsAtMin Int
+  endsAtMin   Int
+  validFrom   DateTime
+  validTo     DateTime
+  createdAt   DateTime @default(now())
+  teacher     Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId, dayOfWeek, validFrom, validTo])
+}
+
+model AvailabilityException {
+  id        String                    @id @default(cuid())
+  teacherId String
+  type      AvailabilityExceptionType
+  startsAt  DateTime
+  endsAt    DateTime
+  reason    String?
+  createdAt DateTime                  @default(now())
+  teacher   Teacher                   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId, startsAt, endsAt])
+}
+
+model TimeSlot {
+  id           String     @id @default(cuid())
+  teacherId    String
+  startsAt     DateTime
+  lessonEndsAt DateTime
+  endsAt       DateTime
+  status       SlotStatus @default(FREE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  teacher      Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  bookings     Booking[]
+
+  @@unique([teacherId, startsAt])
+  @@index([startsAt, status])
+  @@index([teacherId, status])
+}
+
+model Booking {
+  id                   String                 @id @default(cuid())
+  timeSlotId           String
+  teacherId            String
+  studentId            String
+  bookedById           String
+  startsAt             DateTime
+  status               BookingStatus          @default(PAYMENT_PENDING)
+  paymentHoldExpiresAt DateTime?
+  reviewHoldExpiresAt  DateTime?
+  confirmedAt          DateTime?
+  cancelledAt          DateTime?
+  cancelReason         String?
+  meetingUrl           String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  timeSlot             TimeSlot               @relation(fields: [timeSlotId], references: [id])
+  teacher              Teacher                @relation(fields: [teacherId], references: [id])
+  student              Student                @relation(fields: [studentId], references: [id])
+  content              LessonContent?
+  notes                TeacherLessonNote?
+  payments             Payment[]
+  statusHistory        BookingStatusHistory[]
+  refunds              Refund[]
+
+  @@index([teacherId, status, createdAt])
+  @@index([studentId, startsAt(sort: Desc)])
+  @@index([timeSlotId, status])
+}
+
+model BookingStatusHistory {
+  id          String         @id @default(cuid())
+  bookingId   String
+  fromStatus  BookingStatus?
+  toStatus    BookingStatus
+  changedById String?
+  reason      String?
+  createdAt   DateTime       @default(now())
+  booking     Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  changedBy   User?          @relation(fields: [changedById], references: [id])
+
+  @@index([bookingId, createdAt])
+}
+
+model LessonContent {
+  id                String             @id @default(cuid())
+  bookingId         String             @unique
+  studentId         String
+  topic             String
+  lessons           String?
+  questions         String?
+  additionalInfo    String?
+  lockedForLearners Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  booking           Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  student           Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  attachments       LessonAttachment[]
+}
+
+model LessonAttachment {
+  id              String        @id @default(cuid())
+  lessonContentId String
+  uploadedById    String
+  originalName    String
+  storageKey      String
+  mimeType        String
+  byteSize        Int
+  createdAt       DateTime      @default(now())
+  lessonContent   LessonContent @relation(fields: [lessonContentId], references: [id], onDelete: Cascade)
+  uploadedBy      User          @relation("LessonAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([lessonContentId])
+}
+
+model TeacherLessonNote {
+  id            String           @id @default(cuid())
+  bookingId     String           @unique
+  plan          String?
+  covered       String?
+  materials     String?
+  attendance    AttendanceStatus @default(UNKNOWN)
+  actualMinutes Int?
+  privateNote   String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  booking       Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id               String                 @id @default(cuid())
+  bookingId        String?
+  studentId        String
+  payerId          String
+  kind             PaymentKind
+  status           PaymentStatus          @default(AWAITING_PAYMENT)
+  amount           Decimal                @db.Decimal(10, 2)
+  currency         Currency
+  reference        String                 @unique
+  purpose          String
+  proofSubmittedAt DateTime?
+  paidAt           DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  booking          Booking?               @relation(fields: [bookingId], references: [id])
+  payer            User                   @relation("PaymentPayer", fields: [payerId], references: [id])
+  student          Student                @relation(fields: [studentId], references: [id])
+  proofs           PaymentProof[]
+  statusHistory    PaymentStatusHistory[]
+  package          LessonPackage?
+  refunds          Refund[]
+
+  @@index([status, createdAt])
+  @@index([studentId, status])
+}
+
+model PaymentStatusHistory {
+  id          String         @id @default(cuid())
+  paymentId   String
+  fromStatus  PaymentStatus?
+  toStatus    PaymentStatus
+  changedById String?
+  reason      String?
+  createdAt   DateTime       @default(now())
+  payment     Payment        @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  changedBy   User?          @relation(fields: [changedById], references: [id])
+
+  @@index([paymentId, createdAt])
+}
+
+model PaymentProof {
+  id           String   @id @default(cuid())
+  paymentId    String
+  uploadedById String
+  originalName String
+  storageKey   String
+  mimeType     String
+  byteSize     Int
+  createdAt    DateTime @default(now())
+  payment      Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation("PaymentProofUploader", fields: [uploadedById], references: [id])
+
+  @@index([paymentId])
+}
+
+model BankAccountInstruction {
+  id                  String   @id @default(cuid())
+  currency            Currency @unique
+  enabled             Boolean  @default(true)
+  recipientName       String
+  recipientAddress    String
+  rsdAccountNumber    String?
+  foreignInstructions String?
+  paymentModel        String?
+  referenceRule       String
+  paymentPurpose      String
+  singleLessonPrice   Decimal  @db.Decimal(10, 2)
+  packagePrice        Decimal  @db.Decimal(10, 2)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model LessonPackage {
+  id           String         @id @default(cuid())
+  studentId    String
+  paymentId    String         @unique
+  totalCredits Int            @default(4)
+  usedCredits  Int            @default(0)
+  expiresAt    DateTime
+  createdAt    DateTime       @default(now())
+  student      Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  payment      Payment        @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  ledger       CreditLedger[]
+
+  @@index([studentId, expiresAt])
+}
+
+model CreditLedger {
+  id          String         @id @default(cuid())
+  packageId   String?
+  studentId   String
+  bookingId   String?
+  action      CreditAction
+  amount      Int
+  reason      String
+  createdById String?
+  createdAt   DateTime       @default(now())
+  package     LessonPackage? @relation(fields: [packageId], references: [id])
+  student     Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy   User?          @relation("CreditLedgerCreator", fields: [createdById], references: [id])
+
+  @@index([studentId, createdAt])
+  @@index([bookingId])
+}
+
+model Refund {
+  id          String        @id @default(cuid())
+  paymentId   String
+  bookingId   String?
+  status      PaymentStatus @default(REFUND_PENDING)
+  reason      String
+  amount      Decimal       @db.Decimal(10, 2)
+  currency    Currency
+  processedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  payment     Payment       @relation(fields: [paymentId], references: [id])
+  booking     Booking?      @relation(fields: [bookingId], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model NotificationPreference {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  reminderMinutes       Int[]    @default([1440, 60])
+  optionalNotifications Boolean  @default(true)
+  morningSummaryTime    String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PushDevice {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  locale    Locale
+  critical  Boolean   @default(false)
+  readAt    DateTime?
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  entityType String
+  entityId   String
+  action     String
+  reason     String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
