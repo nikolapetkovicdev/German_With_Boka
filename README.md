@@ -50,6 +50,27 @@ npm run dev
 
 Otvori `http://localhost:3000/sr/login`.
 
+## Mesecni planer termina
+Booking ekran radi kao mesecni planer:
+- roditelj ili ucenik bira ucitelja, mesec i vise slobodnih termina;
+- 45 minuta je 1 termin, 90 minuta su 2 vezana termina;
+- kalkulator odmah prikazuje broj termina i ukupnu cenu po cenovniku izabranog ucitelja;
+- jedna uplata i jedan poziv na broj pokrivaju ceo izabrani plan;
+- Bojana dobija interni notification i email summary sa listom termina kada je email servis podesen.
+
+MVP namerno ne tretira ovo kao automatski payment processor. Fokus je na koordinaciji termina, sprecavanju preklapanja i jasnom obracunu za rucnu uplatu.
+
+## Bojana admin/ucitelj nalog
+Za produkcioni Bojana nalog koristi skriptu bez upisivanja lozinke u repozitorijum:
+
+```powershell
+$env:BOJANA_PASSWORD="unesi-lozinku-privremeno"
+npm run account:bojana
+Remove-Item Env:\BOJANA_PASSWORD
+```
+
+Podrazumevani email je `veselinovic.bojana@yahoo.de`. Skripta pravi admin nalog i povezan teacher profil. Posle prve prijave otvoriti `/sr/setup` ili karticu na dashboardu i uneti cenu termina, telefon i stvarne instrukcije za uplatu.
+
 ## Testovi i provere
 ```bash
 npm run lint
@@ -87,6 +108,20 @@ Bez Firebase promenljivih aplikacija radi u mock rezimu i upisuje notifikacije u
 - `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
 
 Native push za Android je pripremljen kroz `@capacitor/push-notifications`; potrebno je dodati stvarni `google-services.json` u Android projekat van javnog repozitorijuma.
+
+## Email notifikacije
+Bez email promenljivih aplikacija radi u mock rezimu: rezervacija se cuva, ucitelj dobija internu notifikaciju u aplikaciji, a audit log belezi da email nije stvarno poslat.
+
+Za stvarno slanje emaila preko Resend-a podesiti:
+```bash
+RESEND_API_KEY="re_..."
+EMAIL_FROM="German with Boka <noreply@tvoj-domen.com>"
+TEACHER_NOTIFICATION_EMAIL="veselinovic.bojana@yahoo.de"
+```
+
+Ako `TEACHER_NOTIFICATION_EMAIL` nije podesen, email ide na email adresu naloga ucitelja. Resend zahteva verifikovan domen ili dozvoljen sender pre produkcionog slanja.
+
+Za Vercel: dodati ove promenljive u Project Settings -> Environment Variables za Production i Preview, zatim uraditi redeploy. Najbrzi test je da roditelj rezervise vise termina kroz `/sr/book`; u audit logu treba da se pojavi `BOOKING_PLAN_EMAIL_SENT` kada Resend stvarno posalje email.
 
 ## Bankovne instrukcije
 Seed kreira demo instrukcije za `RSD`, `EUR`, `USD`, `CHF`. Administrator ih menja kroz admin API/panel. RSD IPS QR payload se generise prema NBS IPS formatu u `DirectBankPaymentProvider`; demo racun mora biti zamenjen stvarnim podacima pre produkcije.

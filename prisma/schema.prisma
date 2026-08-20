@@ -105,6 +105,7 @@ model User {
   notificationPrefs    NotificationPreference?
   pushDevices          PushDevice[]
   notifications        Notification[]
+  bookedPlans          BookingPlan[]           @relation("BookingPlanBooker")
 
   @@index([role])
 }
@@ -136,6 +137,7 @@ model Teacher {
   rules          AvailabilityRule[]
   exceptions     AvailabilityException[]
   bankInstructions TeacherBankInstruction[]
+  bookingPlans   BookingPlan[]
 
   @@index([userId])
 }
@@ -155,6 +157,7 @@ model Student {
   bookings       Booking[]
   lessonContents LessonContent[]
   payments       Payment[]
+  bookingPlans   BookingPlan[]
   packages       LessonPackage[]
   creditLedger   CreditLedger[]
   linkCodes      StudentLinkCode[]
@@ -246,6 +249,7 @@ model TimeSlot {
 
 model Booking {
   id                   String                 @id @default(cuid())
+  planId               String?
   timeSlotId           String
   teacherId            String
   studentId            String
@@ -261,6 +265,7 @@ model Booking {
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
   timeSlot             TimeSlot               @relation(fields: [timeSlotId], references: [id])
+  plan                 BookingPlan?           @relation(fields: [planId], references: [id])
   teacher              Teacher                @relation(fields: [teacherId], references: [id])
   student              Student                @relation(fields: [studentId], references: [id])
   content              LessonContent?
@@ -272,6 +277,33 @@ model Booking {
   @@index([teacherId, status, createdAt])
   @@index([studentId, startsAt(sort: Desc)])
   @@index([timeSlotId, status])
+  @@index([planId])
+}
+
+model BookingPlan {
+  id               String        @id @default(cuid())
+  studentId        String
+  teacherId        String
+  bookedById       String
+  status           PaymentStatus @default(AWAITING_PAYMENT)
+  termCount        Int
+  amount           Decimal       @db.Decimal(10, 2)
+  currency         Currency
+  reference        String        @unique
+  purpose          String
+  proofSubmittedAt DateTime?
+  paidAt           DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  student          Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher          Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  bookedBy         User          @relation("BookingPlanBooker", fields: [bookedById], references: [id])
+  bookings         Booking[]
+  payments         Payment[]
+
+  @@index([studentId, createdAt])
+  @@index([teacherId, status, createdAt])
+  @@index([bookedById, createdAt])
 }
 
 model BookingStatusHistory {
@@ -336,6 +368,7 @@ model TeacherLessonNote {
 model Payment {
   id               String                 @id @default(cuid())
   bookingId        String?
+  planId           String?
   studentId        String
   payerId          String
   kind             PaymentKind
@@ -350,6 +383,7 @@ model Payment {
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   booking          Booking?               @relation(fields: [bookingId], references: [id])
+  plan             BookingPlan?           @relation(fields: [planId], references: [id])
   payer            User                   @relation("PaymentPayer", fields: [payerId], references: [id])
   student          Student                @relation(fields: [studentId], references: [id])
   proofs           PaymentProof[]
@@ -359,6 +393,7 @@ model Payment {
 
   @@index([status, createdAt])
   @@index([studentId, status])
+  @@index([planId])
 }
 
 model PaymentStatusHistory {

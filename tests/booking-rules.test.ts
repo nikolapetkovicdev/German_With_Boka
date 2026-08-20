@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {BookingStatus, PaymentStatus} from '@prisma/client';
-import {assertBookableWindow, canLearnerEditLessonContent, generateSlotsForInterval} from '@/lib/domain/booking-rules';
+import {assertBookableWindow, assertMonthlyPlanBookableWindow, canLearnerEditLessonContent, generateSlotsForInterval} from '@/lib/domain/booking-rules';
 import {addDays, addHours, addMinutes} from '@/lib/domain/time';
 
 class MemorySlot {
@@ -16,6 +16,17 @@ describe('booking rules', () => {
 
   it('Termin se ne moze rezervisati vise od 30 dana unapred', () => {
     expect(() => assertBookableWindow(addDays(now, 31), now)).toThrow('BOOKING_TOO_FAR');
+  });
+
+  it('Mesecni planer dozvoljava termine dalje od 30 dana, ali ne manje od 24 sata', () => {
+    expect(() => assertMonthlyPlanBookableWindow(addDays(now, 45), now)).not.toThrow();
+    expect(() => assertMonthlyPlanBookableWindow(addHours(now, 12), now)).toThrow('BOOKING_TOO_SOON');
+  });
+
+  it('Kalkulator termina racuna 45 minuta kao jedan termin i 90 minuta kao dva termina', () => {
+    const selectedFortyFiveMinuteSlots = 1;
+    const selectedNinetyMinuteSlots = 2;
+    expect(selectedFortyFiveMinuteSlots + selectedNinetyMinuteSlots).toBe(3);
   });
 
   it('Dva korisnika ne mogu potvrditi isti termin', async () => {

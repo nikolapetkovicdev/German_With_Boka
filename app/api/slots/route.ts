@@ -13,9 +13,19 @@ const createSchema = z.object({
   endHour: z.number().int().min(1).max(24)
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    return jsonOk(await listFreeSlots(await requireActor()));
+    const url = new URL(request.url);
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    const teacherId = url.searchParams.get('teacherId') || undefined;
+    return jsonOk(
+      await listFreeSlots(await requireActor(), {
+        from: from ? new Date(from) : undefined,
+        to: to ? new Date(to) : undefined,
+        teacherId
+      })
+    );
   } catch (error) {
     return jsonError(error);
   }
@@ -26,7 +36,10 @@ export async function POST(request: Request) {
     const actor = await requireActor();
     assertRole(actor, [Role.ADMIN, Role.TEACHER]);
     const parsed = createSchema.parse(await request.json());
-    const teacher = actor.role === Role.TEACHER ? await prisma.teacher.findUniqueOrThrow({where: {userId: actor.id}}) : await prisma.teacher.findFirstOrThrow();
+    const teacher =
+      actor.role === Role.TEACHER
+        ? await prisma.teacher.findUniqueOrThrow({where: {userId: actor.id}})
+        : (await prisma.teacher.findUnique({where: {userId: actor.id}})) ?? (await prisma.teacher.findFirstOrThrow());
     const day = new Date(`${parsed.date}T00:00:00.000Z`);
     const slots = generateSlotsForInterval(day, parsed.startHour, parsed.endHour);
     for (const slot of slots) {

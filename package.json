@@ -16,6 +16,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "account:bojana": "tsx scripts/create-bojana-account.ts",
     "jobs:run": "tsx scripts/run-jobs.ts",
     "android:add": "cap add android",
     "android:sync": "cap sync android",

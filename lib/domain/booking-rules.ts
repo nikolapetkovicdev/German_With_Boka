@@ -10,6 +10,12 @@ export function assertBookableWindow(startsAt: Date, now = new Date()) {
   }
 }
 
+export function assertMonthlyPlanBookableWindow(startsAt: Date, now = new Date()) {
+  if (startsAt.getTime() < addHours(now, MIN_BOOKING_HOURS).getTime()) {
+    throw new Error('BOOKING_TOO_SOON');
+  }
+}
+
 export function canLearnerEditLessonContent(startsAt: Date, now = new Date()) {
   return startsAt.getTime() >= addHours(now, LESSON_CONTENT_LOCK_HOURS).getTime();
 }
